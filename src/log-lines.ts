@@ -24,12 +24,12 @@ export class LogMessage extends LogLine {
 
 // logId = 1
 export class LogInitEnv extends LogLine {
-  playerId: string;
+  playerId: bigint;
 
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.playerId = lineSplit[2]!;
+    this.playerId = BigInt("0x" + lineSplit[2]!);
   }
 }
 
@@ -46,7 +46,7 @@ export class LogPhaseTransition extends LogLine {
 
 // logId = 3
 export class LogNewPc extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   classId: number;
   class: string;
@@ -57,7 +57,7 @@ export class LogNewPc extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.classId = tryParseInt(lineSplit[4]!);
     this.class = lineSplit[5] || "UnknownClass";
@@ -70,7 +70,7 @@ export class LogNewPc extends LogLine {
 
 // logId = 4
 export class LogNewNpc extends LogLine {
-  id: string;
+  id: bigint;
   npcId: number;
   name: string;
   currentHp: number;
@@ -79,7 +79,7 @@ export class LogNewNpc extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.npcId = tryParseInt(lineSplit[3]!);
     this.name = lineSplit[4] || "Unknown Entity";
     this.currentHp = tryParseInt(lineSplit[5]!);
@@ -89,7 +89,7 @@ export class LogNewNpc extends LogLine {
 
 // logId = 5
 export class LogDeath extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   killerId: string;
   killerName: string;
@@ -97,7 +97,7 @@ export class LogDeath extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.killerId = lineSplit[4]!;
     this.killerName = lineSplit[5] || "Unknown Entity";
@@ -106,7 +106,7 @@ export class LogDeath extends LogLine {
 
 // logId = 6
 export class LogSkillStart extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   skillId: number;
   skillName: string;
@@ -114,7 +114,7 @@ export class LogSkillStart extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.skillId = tryParseInt(lineSplit[4]!);
     this.skillName = lineSplit[5] || "Unknown Skill";
@@ -123,7 +123,7 @@ export class LogSkillStart extends LogLine {
 
 // logId = 7
 export class LogSkillStage extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   skillId: string;
   skillName: string;
@@ -132,7 +132,7 @@ export class LogSkillStage extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.skillId = lineSplit[4]!;
     this.skillName = lineSplit[5] || "Unknown Skill";
@@ -142,31 +142,31 @@ export class LogSkillStage extends LogLine {
 
 // logId = 8
 export class LogDamage extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   skillId: number;
   skillName: string;
   skillEffectId: number;
   skillEffect: string;
-  targetId: string;
+  targetId: bigint;
   targetName: string;
   damage: number;
   damageModifier: number;
   currentHp: number;
   maxHp: number;
-  statusEffectsOnTarget: (number|string)[][];
-  statusEffectsOnSource: (number|string)[][];
+  statusEffectsOnTarget: [number, bigint][];
+  statusEffectsOnSource: [number, bigint][];
 
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.skillId = tryParseInt(lineSplit[4]!);
     this.skillName = lineSplit[5] || "Unknown Skill";
     this.skillEffectId = tryParseInt(lineSplit[6]!);
     this.skillEffect = lineSplit[7]!;
-    this.targetId = lineSplit[8]!;
+    this.targetId = BigInt("0x" + lineSplit[8]!);
     this.targetName = lineSplit[9] || "Unknown Entity";
     this.damage = tryParseInt(lineSplit[10]!);
     this.damageModifier = tryParseInt(lineSplit[11]!, 0, 16);
@@ -179,7 +179,7 @@ export class LogDamage extends LogLine {
       let lastStatusEffectId:number = 0;
       for(var e of lineSplit[14]!.split(",")) {
         if (isEntityId) {
-          this.statusEffectsOnTarget.push([lastStatusEffectId, e])
+          this.statusEffectsOnTarget.push([lastStatusEffectId, BigInt("0x" + e)])
           isEntityId = false;
         } else {
           lastStatusEffectId = tryParseInt(e);
@@ -189,7 +189,7 @@ export class LogDamage extends LogLine {
       isEntityId = false;
       for(var e of lineSplit[15]!.split(",")) {
         if (isEntityId) {
-          this.statusEffectsOnSource.push([lastStatusEffectId, e])
+          this.statusEffectsOnSource.push([lastStatusEffectId, BigInt("0x" + e)])
           isEntityId = false;
         } else {
           lastStatusEffectId = tryParseInt(e);
@@ -202,14 +202,14 @@ export class LogDamage extends LogLine {
 
 // logId = 9
 export class LogHeal extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   healAmount: number;
 
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.healAmount = tryParseInt(lineSplit[4]!);
     //this.currentHp = tryParseInt(lineSplit[5]);
@@ -218,7 +218,7 @@ export class LogHeal extends LogLine {
 
 // logId = 10
 export class LogBuff extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
   buffId: string;
   buffName: string;
@@ -230,7 +230,7 @@ export class LogBuff extends LogLine {
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     this.buffId = lineSplit[4]!;
     this.buffName = lineSplit[5]!;
@@ -243,13 +243,13 @@ export class LogBuff extends LogLine {
 
 // logId = 11
 export class LogCounterattack extends LogLine {
-  id: string;
+  id: bigint;
   name: string;
 
   constructor(lineSplit: string[]) {
     super(lineSplit);
 
-    this.id = lineSplit[2]!;
+    this.id = BigInt("0x" + lineSplit[2]!);
     this.name = lineSplit[3] || "Unknown Entity";
     /* this.targetId = lineSplit[4];
     this.targetName = lineSplit[5] || "Unknown Entity"; */

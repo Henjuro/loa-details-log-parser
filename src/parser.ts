@@ -47,7 +47,7 @@ function createEntitySkill(): EntitySkills {
 function createEntity(): Entity {
   const newEntity: Entity = {
     lastUpdate: 0,
-    id: "",
+    id: 0n,
     npcId: 0,
     name: "",
     class: "",
@@ -127,10 +127,10 @@ export class LogParser extends EventEmitter {
       setInterval(this.broadcastStateChange.bind(this), 100);
     }
   }
-  updateOrCreateLocalPlayer(newLocal: string) {
+  updateOrCreateLocalPlayer(newLocal: bigint) {
     //Keep local player if exist, and update id to new one (/!\ we'll have to track the next newpc for localplayer spawn)
-    if (this.game && newLocal !== "") {
-      const localPlayerEntity = this.game.entities[this.game.localPlayer];
+    if (this.game) {
+      const localPlayerEntity = this.game.entities.get(this.game.localPlayer);
       if (localPlayerEntity) {
         //Update existing
         this.updateEntity(this.game.localPlayer, {
@@ -141,9 +141,17 @@ export class LogParser extends EventEmitter {
           isPlayer: true,
           gearScore: localPlayerEntity.gearScore,
         });
+        if (this.game.localPlayer != newLocal) {
+          let ent = this.game.entities.get(this.game.localPlayer);
+          if (ent) {
+            this.game.entities.delete(this.game.localPlayer);
+            this.game.entities.set(newLocal, ent);
+            this.game.localPlayer = newLocal;
+          }
+        }
       } else {
         //Create empty localplayer
-        this.game.localPlayer = "You";
+        this.game.localPlayer = newLocal;
         this.updateEntity(this.game.localPlayer, {
           id: newLocal,
           name: "You",
@@ -161,12 +169,12 @@ export class LogParser extends EventEmitter {
 
     const clone = cloneDeep(this.game);
     const curTime = +new Date();
-    let entities: { [key: string]: Entity } = {};
+    let entities: Map<bigint, Entity> = new Map();
     this.game = {
       startedOn: curTime,
       lastCombatPacket: curTime,
       fightStartedOn: 0,
-      localPlayer: this.game?.localPlayer ?? "", //We never reset localplayer outside of initenv or initpc
+      localPlayer: this.game?.localPlayer ?? 0n, //We never reset localplayer outside of initenv or initpc
       entities,
       damageStatistics: {
         totalDamageDealt: 0,
@@ -182,10 +190,10 @@ export class LogParser extends EventEmitter {
       },
     };
 
-    if (clone && clone.localPlayer !== "") {
-      const localPlayerEntity = clone.entities[this.game.localPlayer];
+    if (clone && clone.localPlayer !== 0n) {
+      const localPlayerEntity = clone.entities.get(this.game.localPlayer);
       if (localPlayerEntity)
-        this.updateEntity(localPlayerEntity.name, {
+        this.updateEntity(localPlayerEntity.id, {
           id: localPlayerEntity.id,
           name: localPlayerEntity.name,
           class: localPlayerEntity.class,
@@ -201,9 +209,10 @@ export class LogParser extends EventEmitter {
     this.resetTimer = null;
     const entitiesCopy = cloneDeep(this.game.entities);
     this.resetState();
-    for (const entity of Object.values(entitiesCopy)) {
-      this.updateEntity(entity.name, {
+    for (const entity of entitiesCopy.values()) {
+      this.updateEntity(entity.id, {
         name: entity.name,
+        id: entity.id,
         npcId: entity.npcId,
         class: entity.class,
         classId: entity.classId,
@@ -230,13 +239,60 @@ export class LogParser extends EventEmitter {
   }
 
   broadcastStateChange() {
-    const clone: Game = cloneDeep(this.game);
-    // Dont send breakdowns; will hang up UI
-    Object.values(clone.entities).forEach((entity) => {
-      Object.values(entity.skills).forEach((skill) => {
-        skill.breakdown = [];
-      });
-    });
+    // only need to clone things we actually want to change thing in before transfer
+    // in this case remove the breakdowns
+    // IPC will clone the whole structure anyway
+    const clone: Game = {
+      damageStatistics: this.game.damageStatistics,
+      entities: new Map(),
+      fightStartedOn: this.game.fightStartedOn,
+      lastCombatPacket: this.game.lastCombatPacket,
+      localPlayer: this.game.localPlayer,
+      startedOn: this.game.startedOn
+    }
+    for (let entity of this.game.entities.values()) {
+      let c: Entity = {
+        class: entity.class,
+        classId: entity.classId,
+        currentHp: entity.currentHp,
+        damageDealt: entity.damageDealt,
+        damageDealtBuffedBy: entity.damageDealtBuffedBy,
+        damageDealtBuffedBySupport: entity.damageDealtBuffedBySupport,
+        damageDealtDebuffedBy: entity.damageDealtDebuffedBy,
+        damageDealtDebuffedBySupport: entity.damageDealtDebuffedBySupport,
+        damageTaken: entity.damageTaken,
+        deathTime: entity.deathTime,
+        deaths: entity.deaths,
+        gearScore: entity.gearScore,
+        healingDone: entity.healingDone,
+        hits: entity.hits,
+        id: entity.id,
+        isDead: entity.isDead,
+        isPlayer: entity.isPlayer,
+        lastUpdate: entity.lastUpdate,
+        maxHp: entity.maxHp,
+        name: entity.name,
+        npcId: entity.npcId,
+        shieldDone: entity.shieldDone,
+        skills: {}
+      };
+      for (let skill of Object.values(entity.skills)) {
+        c.skills[skill.id] = {
+          hits: skill.hits,
+          id: skill.id,
+          breakdown: [],
+          maxDamage: skill.maxDamage,
+          name: skill.name,
+          icon: skill.icon,
+          damageDealt: skill.damageDealt,
+          damageDealtDebuffedBySupport: skill.damageDealtDebuffedBySupport,
+          damageDealtBuffedBy: skill.damageDealtBuffedBy,
+          damageDealtBuffedBySupport: skill.damageDealtBuffedBySupport,
+          damageDealtDebuffedBy: skill.damageDealtDebuffedBy
+        };
+      }
+      clone.entities.set(c.id, c);
+    }
 
     this.emit("state-change", clone);
   }
@@ -293,10 +349,10 @@ export class LogParser extends EventEmitter {
     }
   }
 
-  updateEntity(entityName: string, values: Record<string, unknown>) {
+  updateEntity(entityId: bigint, values: Record<string, unknown>) {
     const updateTime = { lastUpdate: +new Date() };
     let entity;
-    if (!(entityName in this.game.entities)) {
+    if (!this.game.entities.has(entityId)) {
       entity = {
         ...createEntity(),
         ...values,
@@ -305,12 +361,12 @@ export class LogParser extends EventEmitter {
     } else {
       entity = {
         ...createEntity(),
-        ...this.game.entities[entityName],
+        ...this.game.entities.get(entityId),
         ...values,
         ...updateTime,
       };
     }
-    this.game.entities[entityName] = entity;
+    this.game.entities.set(entityId, entity);
     return entity;
   }
 
@@ -344,9 +400,9 @@ export class LogParser extends EventEmitter {
 
     if (this.isLive) {
       //Cleanup entities that are not displayed (we keep others in case user want to keep his previous encounter)
-      for (const key in this.game.entities) {
-        if (this.game.entities[key]?.name !== this.game.localPlayer && this.game.entities[key]?.hits.total === 0)
-          delete this.game.entities[key];
+      for (const key of this.game.entities.keys()) {
+        if (this.game.entities.get(key)?.id !== this.game.localPlayer && this.game.entities.get(key)?.hits.total === 0)
+          this.game.entities.delete(key);
       }
 
       if (this.dontResetOnZoneChange === false && this.resetTimer == null) {
@@ -404,17 +460,17 @@ export class LogParser extends EventEmitter {
         message: `onNewPc: ${logLine.id}, ${logLine.name}, ${logLine.classId}, ${logLine.class}, ${logLine.gearScore}, ${logLine.currentHp}, ${logLine.maxHp}`,
       });
     }
-    if (this.game && this.game.localPlayer !== "") {
-      const localPlayerEntity = this.game.entities[this.game.localPlayer];
+    if (this.game && this.game.localPlayer !== 0n) {
+      const localPlayerEntity = this.game.entities.get(this.game.localPlayer);
       if (localPlayerEntity && localPlayerEntity.id === logLine.id) {
         //We tracked new localPlayer
         //We don't delete old one, in case user want to keep log active,
         //but it's not local player so it'll be delete on zone change
         //delete this.game.entities[this.game.localPlayer];
-        this.game.localPlayer = logLine.name;
+        this.game.localPlayer = logLine.id;
       }
     }
-    this.updateEntity(logLine.name, {
+    this.updateEntity(logLine.id, {
       id: logLine.id,
       name: logLine.name,
       class: logLine.class,
@@ -437,7 +493,7 @@ export class LogParser extends EventEmitter {
       });
     }
 
-    this.updateEntity(logLine.name, {
+    this.updateEntity(logLine.id, {
       id: logLine.id,
       name: logLine.name,
       npcId: logLine.npcId,
@@ -458,14 +514,14 @@ export class LogParser extends EventEmitter {
       });
     }
 
-    const entity = this.game.entities[logLine.name];
+    const entity = this.game.entities.get(logLine.id);
 
     let deaths = 0;
     if (!entity) deaths = 1;
     else if (entity.isDead) deaths = entity.deaths;
     else deaths = entity.deaths + 1;
 
-    this.updateEntity(logLine.name, {
+    this.updateEntity(logLine.id, {
       name: logLine.name,
       isDead: true,
       deathTime: +logLine.timestamp,
@@ -487,16 +543,17 @@ export class LogParser extends EventEmitter {
     if (healingSkill) {
       this.healSources.push({
         source: logLine.name,
+        sourceId: logLine.id,
         expires: +logLine.timestamp + healingSkill.duration,
       });
     }
 
-    this.updateEntity(logLine.name, {
+    this.updateEntity(logLine.id, {
       name: logLine.name,
       isDead: false,
     });
 
-    const entity = this.game.entities[logLine.name];
+    const entity = this.game.entities.get(logLine.id);
     if (entity) {
       entity.hits.casts += 1;
       let skill = entity.skills[logLine.skillId];
@@ -548,20 +605,20 @@ export class LogParser extends EventEmitter {
       this.phaseTransitionResetRequest = false;
     }
 
-    this.updateEntity(logLine.name, {
+    this.updateEntity(logLine.id, {
       id: logLine.id,
       name: logLine.name,
     });
 
-    this.updateEntity(logLine.targetName, {
+    this.updateEntity(logLine.targetId, {
       id: logLine.targetId,
       name: logLine.targetName,
       currentHp: logLine.currentHp,
       maxHp: logLine.maxHp,
     });
 
-    const damageOwner = this.game.entities[logLine.name];
-    const damageTarget = this.game.entities[logLine.targetName];
+    const damageOwner = this.game.entities.get(logLine.id);
+    const damageTarget = this.game.entities.get(logLine.targetId);
     if (!damageOwner || !damageTarget) return;
     if (!damageTarget.isPlayer && this.removeOverkillDamage && logLine.currentHp < 0) {
       logLine.damage = logLine.damage + logLine.currentHp;
@@ -753,16 +810,18 @@ export class LogParser extends EventEmitter {
       });
     }
 
-    let sourceName = "";
+    let sourceId: bigint = 0n;
+    let sourceName: string = "";
     for (const source of this.healSources) {
       if (source.expires >= +logLine.timestamp) {
         sourceName = source.source;
+        sourceId = source.sourceId;
         break;
       }
     }
-    if (!sourceName) return;
+    if (!sourceName || sourceId === 0n) return;
 
-    const entity = this.updateEntity(sourceName, {
+    const entity = this.updateEntity(sourceId, {
       name: sourceName,
     });
 
@@ -789,7 +848,7 @@ export class LogParser extends EventEmitter {
     }
 
     if (logLine.shieldAmount && logLine.isNew) {
-      const entity = this.updateEntity(logLine.name, {
+      const entity = this.updateEntity(logLine.id, {
         name: logLine.name,
       });
 
@@ -816,13 +875,14 @@ export class LogParser extends EventEmitter {
       });
     }
 
-    const entity = this.updateEntity(logLine.name, {
+    const entity = this.updateEntity(logLine.id, {
       name: logLine.name,
     });
 
     // TODO: Add skill name from logger
     entity.hits.counter += 1;
   }
+
   getSkillNameIcon(skillId: number, skillEffectId: number, skillName: string): { name: string; icon?: string } {
     if (skillId === 0 && skillEffectId === 0) {
       return { name: "Bleed", icon: "buff_168.png" };

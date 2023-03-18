@@ -51,8 +51,8 @@ export interface Game {
   startedOn: number;
   lastCombatPacket: number;
   fightStartedOn: number;
-  localPlayer: string;
-  entities: { [name: string]: Entity };
+  localPlayer: bigint;
+  entities: Map<bigint, Entity>;
   damageStatistics: DamageStatistics;
 }
 export interface GameNew {
@@ -64,12 +64,13 @@ export interface GameNew {
 }
 export interface HealSource {
   source: string;
+  sourceId: bigint;
   expires: number;
 }
 
 export interface Entity {
   lastUpdate: number;
-  id: string;
+  id: bigint;
   npcId: number;
   name: string;
   class: string;
@@ -87,7 +88,7 @@ export interface Entity {
   healingDone: number;
   shieldDone: number;
   damageTaken: number;
-  skills: { [name: string]: EntitySkills };
+  skills: { [id: number]: EntitySkills };
   hits: Hits;
   damageDealtDebuffedBy: Map<number, number>;
   damageDealtBuffedBy: Map<number, number>;
@@ -96,7 +97,7 @@ export interface Entity {
 export interface Breakdown {
   timestamp: number;
   damage: number;
-  targetEntity: string;
+  targetEntity: bigint;
   isCrit: boolean;
   isBackAttack: boolean;
   isFrontAttack: boolean;

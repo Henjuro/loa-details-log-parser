@@ -59,7 +59,7 @@ export function fileParserWorker(options: FileWorkerOptions, callback: CallableF
           isPlayer: false,
         };
 
-        for (const i of Object.values(encounter.entities)) {
+        for (const [entityId, i] of encounter.entities) {
           if (i.damageTaken > mostDamageTakenEntity.damageTaken) {
             mostDamageTakenEntity = {
               name: i.name,
@@ -114,6 +114,11 @@ export function fileParserWorker(options: FileWorkerOptions, callback: CallableF
       return {
         dataType: "Set",
         value: Array.from(value.values()),
+      };
+    } else if (typeof value  === 'bigint') {
+      return {
+        dataType: "BigInt",
+        value: "0x" + value.toString(16),
       };
     } else {
       return value;
