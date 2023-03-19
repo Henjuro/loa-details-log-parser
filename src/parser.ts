@@ -93,6 +93,8 @@ export class LogParser extends EventEmitter {
   resetAfterPhaseTransition: boolean;
   splitOnPhaseTransition: boolean;
   removeOverkillDamage: boolean;
+  broadcastStateChangeInterval: number;
+  broadcastStateChangeTimer: NodeJS.Timer|undefined;
 
   phaseTransitionResetRequest: boolean;
   phaseTransitionResetRequestTime: number;
@@ -103,7 +105,7 @@ export class LogParser extends EventEmitter {
 
   meterData: MeterData;
 
-  constructor(meterData: MeterData, isLive = false) {
+  constructor(meterData: MeterData, isLive = false, broadcastStateChangeInterval: number = 100) {
     super();
 
     this.meterData = meterData;
@@ -116,6 +118,7 @@ export class LogParser extends EventEmitter {
     this.resetAfterPhaseTransition = false;
     this.splitOnPhaseTransition = false;
     this.removeOverkillDamage = true;
+    this.broadcastStateChangeInterval = broadcastStateChangeInterval;
 
     this.phaseTransitionResetRequest = false;
     this.phaseTransitionResetRequestTime = 0;
@@ -124,9 +127,17 @@ export class LogParser extends EventEmitter {
     this.encounters = [];
 
     if (this.isLive) {
-      setInterval(this.broadcastStateChange.bind(this), 100);
+      this.broadcastStateChangeTimer = setInterval(this.broadcastStateChange.bind(this), this.broadcastStateChangeInterval);
     }
   }
+
+  public changeBroadcastStateChangeInterval(newInterval: number) {
+    if (!this.isLive) return
+    if (this.broadcastStateChangeTimer) clearInterval(this.broadcastStateChangeTimer);
+    this.broadcastStateChangeInterval = newInterval;
+    this.broadcastStateChangeTimer = setInterval(this.broadcastStateChange.bind(this), this.broadcastStateChangeInterval);
+  }
+
   updateOrCreateLocalPlayer(newLocal: string) {
     //Keep local player if exist, and update id to new one (/!\ we'll have to track the next newpc for localplayer spawn)
     if (this.game && newLocal !== "") {
